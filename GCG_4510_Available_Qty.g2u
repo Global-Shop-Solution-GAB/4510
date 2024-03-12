@@ -1,0 +1,96 @@
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'BN, Apr 18, 2017
+'This program will display the available quantity (inventory onhand qty) on the Short Order Lines screen.
+'This qty is populated when a part is loaded or a line is selected.
+
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+'Populate hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,12440)
+	'Set horizontal position
+	f.Intrinsic.Variable.SetProperty("000305","PL",831)
+	f.Intrinsic.Variable.SetProperty("000308","PL",831)
+	'Set vertical position
+	F.Intrinsic.Variable.SetProperty("000305","PT",29)
+	F.Intrinsic.Variable.SetProperty("000308","PT",46)
+	
+	V.Passed.000305.Set("Available Quantity")
+	f.Intrinsic.UI.ChangeCallerProperty(v.Passed.000305,"HIDE",0)
+	F.Intrinsic.UI.ChangeCallerProperty(V.Passed.000305,"LOCK",0)
+	f.Intrinsic.UI.ChangeCallerProperty(v.Passed.000308,"HIDE",0)
+	F.Intrinsic.UI.ChangeCallerProperty(V.Passed.000308,"LOCK",1)
+F.Intrinsic.Control.EndIf
+
+'Load-Part-hook: 12455, Line-changed-Hook: 12445
+F.Intrinsic.Control.If(V.Caller.Hook,=,12455,"or",V.Caller.Hook,=,12445)
+	f.Intrinsic.Control.CallSub(get_available_qty)
+	V.Passed.000308.Set(v.Args.Available_Qty)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4510_Available_Qty.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.Get_Available_Qty.Start
+F.Intrinsic.Control.SetErrorHandler("Get_Available_Qty_Err")
+F.Intrinsic.Control.ClearErrors
+
+v.Local..BulkDeclareString(sError, sSQL, sPart17, sPart20, sRev, sLoc, sQty)
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN, V.Ambient.PUser, V.Ambient.PPass)
+v.Local.sPart17.Set(v.Passed.000071.Trim)
+v.Local.sRev.Set(v.Passed.000072.Trim)
+v.Local.sLoc.Set(v.Passed.000074)
+
+f.Intrinsic.String.GSSPartString(v.Local.sPart17,v.Local.sRev,v.Local.sPart20)
+
+f.Intrinsic.String.Build("Select QTY_ONHAND from Inventory_Mstr where Part = '{0}' and Location = '{1}'",v.Local.sPart20,v.Local.sLoc,v.Local.sSQL)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,<>,True)
+	v.Local.sQty.Set(v.ODBC.conx!rst.FieldValTrim!QTY_ONHAND)
+f.Intrinsic.Control.EndIf
+f.ODBC.conx!rst.Close
+f.ODBC.Connection!conx.Close
+
+Function.Intrinsic.Variable.AddRV ("Available_Qty", Variable.Local.sQty)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Get_Available_Qty_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4510_Available_Qty.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Get_Available_Qty.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$11/22/2016 10:57:31 AM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$for SMS Millcraft, per quote 6044
+Import processed Invoice details, by branch location, as Invoice and/or Accrual Batches.  Batch IDs will be manually entered.
+Import files will have header, 001, and 002 records.
+Header layout is
+Row ID, Voucher#, Invoice Date, Invoice#, PO#, Vendor#, , Gross Amt, Tax,, Currency, Record Type, Date
+
+001 layout is
+Row ID, Voucher#, GL Company, Account, Line Amt
+
+002 layout is
+Row ID, Voucher#, PO#, Receipt#, Line#, Number, Reference, UM, Price, Qty, Line Amt
+
+Each 001 Record where a 002 record is found, and a PO# exists on the 002 record, are Invoice/Accruals and will be written to the Accrual Upload File. For Records with a matching PO, create only a single Invoice record.
+Each 001 Record without a PO# associated are Invoice, and will be written to the Invoice Upload File.
+
+Program.Sub.Comments.End
